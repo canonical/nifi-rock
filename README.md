@@ -12,10 +12,9 @@ This rock builds **Apache NiFi** and packages it as a Pebble-managed OCI contain
 ```
 nifi-rock/
 ├─ <major.minor>/
-│  └─ <version>-24.04/
-│     ├─ rockcraft.yaml         # Rockcraft manifest defining the rock
-│     ├─ goss.yaml
-│     └─ goss_wait.yaml
+│  ├─ rockcraft.yaml         # Rockcraft manifest defining the rock
+│  ├─ goss.yaml
+│  └─ goss_wait.yaml
 ├─ DEVELOPING.md
 ├─ justfile
 ├─ LICENSE
