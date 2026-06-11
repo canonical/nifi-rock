@@ -10,7 +10,7 @@ This rock builds **Apache NiFi** and packages it as a Pebble-managed OCI contain
 ## Project Structure
 
 ```
-nifi-rock/
+nifi-rocks/
 ├─ <major.minor>/
 │  ├─ rockcraft.yaml         # Rockcraft manifest defining the rock
 │  ├─ goss.yaml

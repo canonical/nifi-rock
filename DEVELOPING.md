@@ -35,7 +35,7 @@ cd 2.9
 rockcraft pack
 ```
 
-This produces a `.rock` artifact (e.g., `nifi-rock_2.9.0_amd64.rock`) in the same directory.
+This produces a `.rock` artifact (e.g., `nifi-rocks_2.9.0_amd64.rock`) in the same directory.
 
 ---
 
