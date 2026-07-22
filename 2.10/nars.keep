@@ -1,0 +1,41 @@
+# NAR allowlist. Every NAR in lib/ that is not listed here is deleted at build
+# time; every NAR listed here that is not found in the distribution fails the
+# build. Names are the NAR artifact id, without the trailing -<version>.nar.
+#
+# Re-check on a version bump.
+#
+# lib/bootstrap/ contains jars, not NARs, and is never pruned. It provides the
+# nifi.sh credential and sensitive-key commands.
+
+# --- framework and runtime (mandatory; NiFi will not start without these) -----
+nifi-framework-nar
+nifi-jetty-nar
+nifi-provenance-repository-nar
+nifi-server-nar
+
+# --- standard processors and their dependencies -------------------------------
+nifi-standard-nar
+nifi-standard-shared-nar
+nifi-standard-services-api-nar
+nifi-update-attribute-nar
+nifi-standard-content-viewer-nar
+
+# --- selected integrations and their service NARs -----------------------------
+nifi-record-serialization-services-nar
+nifi-jolt-nar
+nifi-http-context-map-nar
+nifi-kafka-nar
+nifi-kafka-service-api-nar
+nifi-kafka-3-service-nar
+nifi-ssl-context-service-nar
+nifi-dbcp-service-nar
+nifi-database-dialect-service-nar
+nifi-jms-processors-nar
+nifi-jms-cf-service-nar
+nifi-single-user-iaa-providers-nar
+# Git-based flow registry clients. nifi-flow-registry-client-nar is NOT the Git
+# client -- it holds only the legacy NifiRegistryFlowRegistryClient, which talks
+# to the deprecated standalone NiFi Registry, so it is pruned. Both GitHub and
+# GitLab are kept because the git-integrator charm is provider-agnostic.
+nifi-github-nar
+nifi-gitlab-nar

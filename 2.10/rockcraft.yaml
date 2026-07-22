@@ -1,0 +1,189 @@
+name: nifi
+base: ubuntu@26.04
+version: "2.10.0"
+summary: Charmed Apache NiFi ROCK OCI
+description: |
+  OCI image bundling Apache NiFi 2.x on Ubuntu 26.04 with a Java 21 runtime,
+  used as the workload image for the Charmed NiFi 2.x operator.
+license: Apache-2.0
+platforms:
+  amd64:
+
+environment:
+  JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+  NIFI_HOME: /opt/nifi
+
+services:
+  nifi:
+    override: replace
+    summary: Apache NiFi
+    command: /opt/nifi/scripts/start.sh
+    startup: enabled
+    user: ubuntu
+    group: ubuntu
+    working-dir: /opt/nifi
+    environment:
+      JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+      NIFI_HOME: /opt/nifi
+      NIFI_LOG_DIR: /var/log/nifi
+      # bin/nifi-env.sh resolves NIFI_HOME, NIFI_PID_DIR and NIFI_LOG_DIR
+      # through a setOrDefault helper that ignores the environment unless this
+      # is "true". Without it NIFI_LOG_DIR is reset to
+      # $NIFI_HOME/logs and logs land inside the image instead of /var/log/nifi.
+      NIFI_OVERRIDE_NIFIENV: "true"
+
+checks:
+  nifi-ready:
+    override: replace
+    level: ready
+    period: 30s
+    timeout: 5s
+    threshold: 6
+    tcp:
+      port: 8080
+
+parts:
+  runtime:
+    plugin: nil
+    stage-packages:
+      - openjdk-21-jre-headless
+      - ca-certificates
+
+  nifi:
+    plugin: dump
+    after: [runtime]
+    source: https://github.com/canonical/central-uploader/releases/download/nifi-2.10.0-ubuntu0/nifi-2.10.0-ubuntu0-20260717163246-bin.tar.gz
+    source-checksum: sha512/8c1474866bad6777fe8fd451908714324197f7eabe7a9ce05920563266eba08d5735b74a461657fa8ff57042330a70e46a8fdc605a7561b6f04dae6d12116004
+    build-environment:
+      # File listing the NARs to keep. Set to "" to keep every NAR the distribution ships.
+      - NAR_ALLOWLIST: nars.keep
+    override-build: |
+      set -eu
+
+      SRC="${CRAFT_PART_SRC}"
+      DEST="${CRAFT_PART_INSTALL}/opt/nifi"
+
+      # Fail if the artifact layout changes
+      if [ ! -x "${SRC}/bin/nifi.sh" ] || [ ! -d "${SRC}/lib" ]; then
+        echo "ERROR: ${SRC} does not look like a NiFi distribution" >&2
+        exit 1
+      fi
+
+      install -d "${DEST}"
+      cp -a "${SRC}/." "${DEST}/"
+
+      # --- prune NARs to the allowlist ---------------------------------------
+      # Driven by NAR_ALLOWLIST: an empty value keeps every NAR, a set value requires the named
+      # file.Pruning is an allowlist, not a denylist, so a future NiFi version's new
+      # NARs are dropped until explicitly added.
+    
+      if [ -z "${NAR_ALLOWLIST:-}" ]; then
+        echo "INFO: NAR_ALLOWLIST is empty; keeping all $(ls -1 "${DEST}"/lib/*.nar | wc -l) NARs (image will be large)"
+      else
+        NARS_KEEP="${CRAFT_PROJECT_DIR}/${NAR_ALLOWLIST}"
+        if [ ! -s "${NARS_KEEP}" ]; then
+          echo "ERROR: NAR_ALLOWLIST names '${NAR_ALLOWLIST}' but ${NARS_KEEP} is" >&2
+          echo "       missing or empty. Create it, or set NAR_ALLOWLIST to an" >&2
+          echo "       empty value to keep every NAR." >&2
+          exit 1
+        fi
+
+        KEEP="$(grep -vE '^[[:space:]]*(#|$)' "${NARS_KEEP}")"
+
+        for f in "${DEST}"/lib/*.nar; do
+          base="$(printf '%s' "${f##*/}" | sed -E 's/-[0-9][0-9.]*(-ubuntu[0-9]+)?\.nar$//')"
+          printf '%s\n' "${KEEP}" | grep -qxF "${base}" || rm -f "${f}"
+        done
+
+        # An allowlisted NAR that no longer exists means upstream renamed or
+        # dropped it. That must fail the build, not yield a broken image.
+        missing=""
+        for want in ${KEEP}; do
+          ls "${DEST}"/lib/"${want}"-*.nar >/dev/null 2>&1 || missing="${missing} ${want}"
+        done
+        if [ -n "${missing}" ]; then
+          echo "ERROR: allowlisted NARs missing from the distribution:${missing}" >&2
+          exit 1
+        fi
+        echo "INFO: kept $(ls -1 "${DEST}"/lib/*.nar | wc -l) NARs"
+      fi
+
+      # --- default configuration ---------------------------------------------
+      PROPS="${DEST}/conf/nifi.properties"
+
+      set_prop() {
+        if ! grep -qE "^${1}=" "${PROPS}"; then
+          echo "ERROR: property ${1} not found in nifi.properties" >&2
+          exit 1
+        fi
+        sed -i -E "s|^${1}=.*|${1}=${2:-}|" "${PROPS}"
+      }
+
+      # HTTP-only on 8080. On 2.10 the keystore is also instantiated eagerly even in HTTP-only mode, so the keystore and
+      # truststore paths must be blanked too or startup dies with
+      # FileNotFoundException: ./conf/keystore.p12
+      set_prop nifi.web.http.host          ""
+      set_prop nifi.web.http.port          "8080"
+      set_prop nifi.web.https.host         ""
+      set_prop nifi.web.https.port         ""
+      set_prop nifi.remote.input.secure    "false"
+      set_prop nifi.security.keystore      ""
+      set_prop nifi.security.truststore    ""
+
+      # Repositories live on absolute /var/lib/nifi paths rather than under NIFI_HOME
+      set_prop nifi.flowfile.repository.directory            "/var/lib/nifi/data/flowfile_repository"
+      set_prop nifi.content.repository.directory.default     "/var/lib/nifi/content_repository"
+      set_prop nifi.provenance.repository.directory.default  "/var/lib/nifi/provenance_repository"
+      set_prop nifi.database.directory                       "/var/lib/nifi/data/database_repository"
+      set_prop nifi.flow.configuration.file                  "/var/lib/nifi/data/flow.json.gz"
+
+      # Local state provider lives in state-management.xml
+      STATE="${DEST}/conf/state-management.xml"
+      if ! grep -q './state/local' "${STATE}"; then
+        echo "ERROR: local state directory not found in state-management.xml" >&2
+        exit 1
+      fi
+      sed -i 's|\./state/local|/var/lib/nifi/data/state/local|' "${STATE}"
+
+      # --- entrypoint wrapper and licenses ------------------------------------
+      install -D -m 755 "${CRAFT_PROJECT_DIR}/scripts/start.sh" "${DEST}/scripts/start.sh"
+      install -D -m 644 "${SRC}/LICENSE" "${CRAFT_PART_INSTALL}/licenses/LICENSE-nifi"
+
+  nifi-rock-license:
+    plugin: dump
+    source: https://github.com/canonical/nifi-rocks
+    source-type: git
+    source-branch: main
+    source-depth: 1
+    organize:
+      LICENSE: licenses/LICENSE-nifi-rock
+    stage:
+      - licenses/LICENSE-nifi-rock
+
+  deb-security-manifest:
+    plugin: make
+    source: https://github.com/canonical/rocks-security-manifest
+    source-type: git
+    source-branch: main
+    override-prime: gen_manifest
+
+  permissions:
+    plugin: nil
+    after: [nifi]
+    override-prime: |
+      set -eu
+      craftctl default
+
+      # uid/gid 1000 is the base image's ubuntu user
+      chown -R 1000:1000 "${CRAFT_PRIME}/opt/nifi"
+
+      for d in \
+        "${CRAFT_PRIME}/var/lib/nifi/data" \
+        "${CRAFT_PRIME}/var/lib/nifi/content_repository" \
+        "${CRAFT_PRIME}/var/lib/nifi/provenance_repository" \
+        "${CRAFT_PRIME}/var/log/nifi"
+      do
+        mkdir -p "${d}"
+        chmod 770 "${d}"
+        chown 1000:1000 "${d}"
+      done

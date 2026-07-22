@@ -1,0 +1,191 @@
+command:
+  pebble-services:
+    exec: "pebble services"
+    exit-status: 0
+
+  java-21-runtime:
+    exec: "$JAVA_HOME/bin/java -version 2>&1"
+    exit-status: 0
+    stdout:
+      - '/openjdk version "21\./'
+
+  nifi-framework-nar-version:
+    exec: "ls /opt/nifi/lib/nifi-framework-nar-*.nar"
+    exit-status: 0
+    stdout:
+      - '/nifi-framework-nar-2\.10\./'
+
+  # Pruning regression test: if the allowlist or the version-strip pattern
+  # breaks, this count moves and CI fails.
+  nar-keep-set-size:
+    exec: "ls -1 /opt/nifi/lib/*.nar | wc -l"
+    exit-status: 0
+    stdout:
+      - "23"
+
+  bootstrap-libs-present:
+    exec: "ls -1 /opt/nifi/lib/bootstrap/*.jar | wc -l"
+    exit-status: 0
+    stdout:
+      - "/^[1-9][0-9]*$/"
+
+  nifi-runs-as-ubuntu:
+    exec: "ps -o user= -p $(pgrep -f org.apache.nifi.bootstrap | head -n 1)"
+    exit-status: 0
+    stdout:
+      - "ubuntu"
+
+  # HTTP-only configuration. NiFi refuses to start when both web ports are set,
+  # and on 2.10 a non-blank keystore path is fatal even without HTTPS.
+  https-port-blank:
+    exec: "grep -c '^nifi.web.https.port=$' /opt/nifi/conf/nifi.properties"
+    exit-status: 0
+    stdout:
+      - "1"
+  keystore-blank:
+    exec: "grep -c '^nifi.security.keystore=$' /opt/nifi/conf/nifi.properties"
+    exit-status: 0
+    stdout:
+      - "1"
+  remote-input-not-secure:
+    exec: "grep -c '^nifi.remote.input.secure=false$' /opt/nifi/conf/nifi.properties"
+    exit-status: 0
+    stdout:
+      - "1"
+
+  # Repositories must resolve to /var/lib/nifi, not under NIFI_HOME
+  repos-on-var-lib:
+    exec: "grep -c '^nifi\\..*directory.*=/var/lib/nifi/' /opt/nifi/conf/nifi.properties"
+    exit-status: 0
+    stdout:
+      - "4"
+
+  # Logs must land on /var/log/nifi rather than inside the image. This only
+  # holds because NIFI_OVERRIDE_NIFIENV=true makes nifi-env.sh honour
+  # NIFI_LOG_DIR; without it NiFi falls back to $NIFI_HOME/logs.
+  logs-on-var-log:
+    exec: "ls /var/log/nifi/nifi-app.log"
+    exit-status: 0
+
+  # exit-status 1 is the pass condition: `grep -c` exits 1 when it matches
+  # nothing, which is exactly what we want here. An ERROR in the log flips the
+  # exit status to 0 and the count above 0, so both assertions fail together.
+  # A missing log file exits 2 and also fails, rather than passing vacuously.
+  no-errors-on-boot:
+    exec: "grep -c ' ERROR ' /var/log/nifi/nifi-app.log"
+    exit-status: 1
+    stdout:
+      - "0"
+
+  # The sensitive key auto-generates and persists on a fresh node, which only
+  # works if the non-root user can write conf/.
+  sensitive-key-generated:
+    exec: "grep -c '^nifi.sensitive.props.key=.\\+$' /opt/nifi/conf/nifi.properties"
+    exit-status: 0
+    stdout:
+      - "1"
+
+file:
+  /opt/nifi:
+    exists: true
+    filetype: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+  /opt/nifi/scripts/start.sh:
+    exists: true
+    filetype: file
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+  /opt/nifi/bin/nifi.sh:
+    exists: true
+    filetype: file
+    owner: ubuntu
+    group: ubuntu
+  /var/lib/nifi/data:
+    exists: true
+    filetype: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0770"
+  /var/lib/nifi/content_repository:
+    exists: true
+    filetype: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0770"
+  /var/lib/nifi/provenance_repository:
+    exists: true
+    filetype: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0770"
+  /var/log/nifi:
+    exists: true
+    filetype: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0770"
+  /var/lib/nifi/data/flow.json.gz:
+    exists: true
+    filetype: file
+    owner: ubuntu
+    group: ubuntu
+  /licenses/LICENSE-nifi:
+    exists: true
+    filetype: file
+    owner: root
+    group: root
+    mode: "0644"
+  /licenses/LICENSE-nifi-rock:
+    exists: true
+    filetype: file
+    owner: root
+    group: root
+    mode: "0644"
+  /usr/share/rocks/dpkg.query:
+    exists: true
+    filetype: file
+    owner: root
+    group: root
+    mode: "0644"
+  /etc/ssl/certs/ca-certificates.crt:
+    exists: true
+    filetype: file
+    owner: root
+    group: root
+
+port:
+  # Jetty binds a dual-stack IPv6 wildcard socket, so the listener only appears in /proc/net/tcp6.
+  tcp6:8080:
+    listening: true
+
+user:
+  root:
+    exists: true
+    uid: 0
+    gid: 0
+  ubuntu:
+    exists: true
+    uid: 1000
+    gid: 1000
+
+http:
+  # v1 serves HTTP on 8080 with anonymous access, so no auth is needed. When the
+  # rock moves to single-user HTTPS these become https://localhost:8443/... and
+  # an unauthenticated 401 still proves the API is serving.
+  nifi-about:
+    url: http://localhost:8080/nifi-api/flow/about
+    status: 200
+    timeout: 10000
+    body:
+      - '"version":"2.10.0"'
+  nifi-system-diagnostics:
+    url: http://localhost:8080/nifi-api/system-diagnostics
+    status: 200
+    timeout: 10000
+  nifi-ui:
+    url: http://localhost:8080/nifi/
+    status: 200
+    timeout: 10000
