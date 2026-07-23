@@ -14,13 +14,16 @@ sudo snap install lxd && sudo lxd init --auto
 sudo adduser "$USER" lxd && newgrp lxd
 ```
 
-Running the smoke tests additionally needs `just`, `yq`, `jq`, `goss`/`kgoss`,
-and a microk8s cluster:
+Running the smoke tests additionally needs `just`, `yq`, `jq`, `docker`,
+`goss`/`kgoss`, and a Kubernetes cluster. `just test` stands up its own docker
+registry to hand the image to `kgoss`, so no separate registry addon is needed —
+but `kgoss` still runs the rock as a pod, so a working cluster and kubeconfig
+are required.
 
 ```bash
-sudo snap install just --classic     
+sudo snap install just --classic     # just is classic confinement; yq is not
 sudo snap install yq
-sudo apt-get install -y jq
+sudo apt-get install -y jq docker.io
 
 goss_base_url="https://github.com/goss-org/goss/releases/latest/download"
 sudo curl -L "${goss_base_url}/goss-linux-$(dpkg --print-architecture)" -o /usr/local/bin/goss
@@ -28,20 +31,23 @@ sudo curl -L "${goss_base_url}/kgoss" -o /usr/local/bin/kgoss
 sudo chmod +rx /usr/local/bin/goss /usr/local/bin/kgoss
 ```
 
+Any cluster `kgoss` can reach works; the steps below use microk8s. `microk8s
+config` cannot be redirected straight into `~/.kube/config` (the confined snap
+fails with `Bad file descriptor`), so pipe it through `tee`, otherwise `kubectl`
+silently falls back to `localhost:8080`:
+
 ```bash
 sudo snap install microk8s --classic
 sudo snap install kubectl --classic
 sudo usermod -a -G microk8s "$USER"
 sudo chown -R "$USER" ~/.kube
-newgrp microk8s                        
+newgrp microk8s                        # or log out and back in
 
 microk8s status --wait-ready
-sudo microk8s enable registry
-
 microk8s config | tee ~/.kube/config > /dev/null
 chmod 600 ~/.kube/config
 
-kubectl get nodes                    
+kubectl get nodes                      # must succeed before `just test`
 ```
 
 ---
@@ -88,10 +94,10 @@ just clean 2.10
 
 ## Testing the Rock
 
-`just test <version>` packs the rock, pushes it to the microk8s registry on
-`localhost:32000`, and runs the `goss.yaml` smoke tests in a pod started from
-that image — pulled by digest, so the container under test is exactly the image
-just pushed.
+`just test <version>` packs the rock, pushes it to a throwaway docker registry
+it starts on `localhost:5000`, and runs the `goss.yaml` smoke tests in a pod
+started from that image — pulled by digest, so the container under test is
+exactly the image just pushed. The registry is torn down on exit.
 
 `goss_wait.yaml` gates the run until NiFi answers on its API. 
 `goss.yaml` asserts on things NiFi writes during startup

@@ -3,7 +3,7 @@ base: ubuntu@26.04
 version: "2.10.0"
 summary: Charmed Apache NiFi ROCK OCI
 description: |
-  OCI image bundling Apache NiFi 2.x on Ubuntu 26.04 with a Java 21 runtime,
+  OCI image bundling Apache NiFi 2.10 on Ubuntu 26.04 with a Java 21 runtime,
   used as the workload image for the Charmed NiFi 2.x operator.
 license: Apache-2.0
 platforms:
