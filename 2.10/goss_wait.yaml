@@ -1,0 +1,20 @@
+process:
+  pebble:
+    running: true
+  java:
+    running: true
+
+port:
+  # Jetty binds a dual-stack IPv6 wildcard socket, so the listener shows up in /proc/net/tcp6 and an IPv4-only `tcp:8080` check never
+  # matches even though the port is serving.
+  tcp6:8080:
+    listening: true
+
+http:
+  # goss.yaml asserts on things NiFi writes during startup -- flow.json.gz, the generated
+  # sensitive key, an error-free app log. Waiting here makes the suite deterministic instead of
+  # racing NiFi's boot.
+  nifi-api-ready:
+    url: http://localhost:8080/nifi-api/system-diagnostics
+    status: 200
+    timeout: 10000

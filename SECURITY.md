@@ -10,13 +10,11 @@ The [Ubuntu Security disclosure and embargo policy](https://ubuntu.com/security/
 
 ## Supported Versions
 
-The NiFi rock follows the Apache NiFi release cadence, built on Ubuntu 24.04 LTS. The product currently ships interim releases; no LTS commitment is made at this time.
+The NiFi rock follows the Apache NiFi release cadence, built on Ubuntu 26.04 LTS. The product currently ships interim releases; no LTS commitment is made at this time.
 
-| Rock Version | Apache NiFi | Ubuntu Base              | Status          | End of Standard Support |
-| ------------ | ----------- | ------------------------ | --------------- | ----------------------- |
-| 2.4.x        | 2.4.x       | Ubuntu 24.04 LTS (Noble) | **Pre-release** | TBD                     |
-
-Older rock versions receive no further security updates. Users are encouraged to upgrade to a supported version.
+| Rock Version | Apache NiFi | Ubuntu Base                          | Status          | End of Standard Support |
+| ------------ | ----------- | ------------------------------------ | --------------- | ----------------------- |
+| 2.10.x       | 2.10.x      | Ubuntu 26.04 LTS (Resolute Raccoon)  | **Pre-release** | TBD                     |
 
 ## Product Lifetime and Support Phases
 
@@ -26,4 +24,4 @@ Older rock versions receive no further security updates. Users are encouraged to
 | **Security Maintenance** | Security patches only; no new features or non-critical bug fixes. |
 | **End of Life (EOL)**    | No further updates. Users must upgrade to a supported version.    |
 
-Support periods are defined in the Workflows team support policy. The current `2.4` series is in **Pre-release** and will transition to Standard Support upon first stable release, followed by Security Maintenance prior to its End of Standard Support date.
+Support periods are defined in the Workflows team support policy. The current `2.10` series is in **Pre-release** and will transition to Standard Support upon first stable release, followed by Security Maintenance prior to its End of Standard Support date.
