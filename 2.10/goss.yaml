@@ -29,11 +29,42 @@ command:
     stdout:
       - "/^[1-9][0-9]*$/"
 
-  nifi-runs-as-ubuntu:
+  nifi-runs-as-daemon:
     exec: "ps -o user= -p $(pgrep -f org.apache.nifi.bootstrap | head -n 1)"
     exit-status: 0
     stdout:
-      - "ubuntu"
+      - "_daemon_"
+
+  # Non-root compliance: the container must run as the shared user _daemon_
+  # (uid/gid 584792) with write access to every path the charm operates on.
+  runtime-uid-is-daemon:
+    exec: "id -u"
+    exit-status: 0
+    stdout:
+      - "584792"
+  runtime-gid-is-daemon:
+    exec: "id -g"
+    exit-status: 0
+    stdout:
+      - "584792"
+  conf-dir-writable:
+    exec: "test -w /opt/nifi/conf"
+    exit-status: 0
+  nifi-sh-executable:
+    exec: "test -x /opt/nifi/bin/nifi.sh"
+    exit-status: 0
+  data-dir-writable:
+    exec: "test -w /var/lib/nifi/data"
+    exit-status: 0
+  content-repo-writable:
+    exec: "test -w /var/lib/nifi/content_repository"
+    exit-status: 0
+  provenance-repo-writable:
+    exec: "test -w /var/lib/nifi/provenance_repository"
+    exit-status: 0
+  log-dir-writable:
+    exec: "test -w /var/log/nifi"
+    exit-status: 0
 
   # HTTP-only configuration. NiFi refuses to start when both web ports are set,
   # and on 2.10 a non-blank keystore path is fatal even without HTTPS.
@@ -89,49 +120,49 @@ file:
   /opt/nifi:
     exists: true
     filetype: directory
-    owner: ubuntu
-    group: ubuntu
+    owner: _daemon_
+    group: _daemon_
     mode: "0755"
   /opt/nifi/scripts/start.sh:
     exists: true
     filetype: file
-    owner: ubuntu
-    group: ubuntu
+    owner: _daemon_
+    group: _daemon_
     mode: "0755"
   /opt/nifi/bin/nifi.sh:
     exists: true
     filetype: file
-    owner: ubuntu
-    group: ubuntu
+    owner: _daemon_
+    group: _daemon_
   /var/lib/nifi/data:
     exists: true
     filetype: directory
-    owner: ubuntu
-    group: ubuntu
+    owner: _daemon_
+    group: _daemon_
     mode: "0770"
   /var/lib/nifi/content_repository:
     exists: true
     filetype: directory
-    owner: ubuntu
-    group: ubuntu
+    owner: _daemon_
+    group: _daemon_
     mode: "0770"
   /var/lib/nifi/provenance_repository:
     exists: true
     filetype: directory
-    owner: ubuntu
-    group: ubuntu
+    owner: _daemon_
+    group: _daemon_
     mode: "0770"
   /var/log/nifi:
     exists: true
     filetype: directory
-    owner: ubuntu
-    group: ubuntu
+    owner: _daemon_
+    group: _daemon_
     mode: "0770"
   /var/lib/nifi/data/flow.json.gz:
     exists: true
     filetype: file
-    owner: ubuntu
-    group: ubuntu
+    owner: _daemon_
+    group: _daemon_
   /licenses/LICENSE-nifi:
     exists: true
     filetype: file
@@ -166,10 +197,10 @@ user:
     exists: true
     uid: 0
     gid: 0
-  ubuntu:
+  _daemon_:
     exists: true
-    uid: 1000
-    gid: 1000
+    uid: 584792
+    gid: 584792
 
 http:
   # v1 serves HTTP on 8080 with anonymous access, so no auth is needed. When the
