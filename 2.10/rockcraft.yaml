@@ -9,6 +9,10 @@ license: Apache-2.0
 platforms:
   amd64:
 
+# Run the workload as the shared non-root user _daemon_ (uid/gid 584792).
+# See https://discourse.ubuntu.com/t/unifying-user-identity-across-snaps-and-rocks/36469
+run_user: _daemon_
+
 environment:
   JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
   NIFI_HOME: /opt/nifi
@@ -19,8 +23,8 @@ services:
     summary: Apache NiFi
     command: /opt/nifi/scripts/start.sh
     startup: enabled
-    user: ubuntu
-    group: ubuntu
+    user: _daemon_
+    group: _daemon_
     working-dir: /opt/nifi
     environment:
       JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
@@ -174,8 +178,12 @@ parts:
       set -eu
       craftctl default
 
-      # uid/gid 1000 is the base image's ubuntu user
-      chown -R 1000:1000 "${CRAFT_PRIME}/opt/nifi"
+      # Please refer to https://discourse.ubuntu.com/t/unifying-user-identity-across-snaps-and-rocks/36469
+      # for more information about the shared non-root user.
+      NIFI_UID=584792
+      NIFI_GID=584792
+
+      chown -R ${NIFI_UID}:${NIFI_GID} "${CRAFT_PRIME}/opt/nifi"
 
       for d in \
         "${CRAFT_PRIME}/var/lib/nifi/data" \
@@ -185,5 +193,5 @@ parts:
       do
         mkdir -p "${d}"
         chmod 770 "${d}"
-        chown 1000:1000 "${d}"
+        chown ${NIFI_UID}:${NIFI_GID} "${d}"
       done
