@@ -134,6 +134,7 @@ file:
     filetype: file
     owner: _daemon_
     group: _daemon_
+    mode: "0750"
   /var/lib/nifi/data:
     exists: true
     filetype: directory
